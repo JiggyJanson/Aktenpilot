@@ -5,7 +5,7 @@ let currentView = "dashboard";
 let analysisQueue = Promise.resolve();
 const queuedAnalysisIds = new Set();
 let mobileCaseDetailOpen = false;
-let completedCasesExpanded = false;
+let mobileCaseTab = "progress";
 
 function loadState() {
   try {
@@ -115,15 +115,12 @@ function renderCases() {
   const groups = [
     { status: "progress", title: "In Arbeit", description: "Aktiv bearbeitete Fälle" },
     { status: "open", title: "Offen", description: "Noch nicht begonnene Fälle" },
-    { status: "done", title: "Erledigt", description: "Abgeschlossene Fälle", collapsible: true }
+    { status: "done", title: "Erledigt", description: "Abgeschlossene Fälle" }
   ];
-  const groupedMobileCases = groups.map(group => {
-    const casesInGroup = sortCasesForWorklist(filtered.filter(c => c.status === group.status));
-    const collapsed = group.collapsible && !completedCasesExpanded;
-    const heading = group.collapsible ? `<button class="case-group-toggle" data-toggle-completed type="button" aria-expanded="${!collapsed}"><span><b>${group.title}</b><small>${collapsed ? "Erledigte Fälle anzeigen" : group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span><span class="toggle-chevron">${collapsed ? "⌄" : "⌃"}</span></button>` : `<div class="case-group-heading"><span><b>${group.title}</b><small>${group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span></div>`;
-    return `<section class="case-group ${group.status} ${collapsed ? "collapsed" : ""}">${heading}<div class="case-group-content">${casesInGroup.length ? casesInGroup.map(caseCard).join("") : `<p class="case-group-empty">Keine Fälle in diesem Bereich.</p>`}</div></section>`;
-  }).join("");
-  document.getElementById("caseList").innerHTML = isMobileViewport() ? groupedMobileCases : (filtered.length ? filtered.map(caseCard).join("") : empty("Keine passenden Fälle"));
+  const mobileTabs = groups.map(group => ({ ...group, cases: sortCasesForWorklist(filtered.filter(c => c.status === group.status)) }));
+  const activeTab = mobileTabs.find(group => group.status === mobileCaseTab) || mobileTabs[0];
+  const mobileList = `<div class="mobile-case-tabs" role="tablist" aria-label="Fallstatus">${mobileTabs.map(group => `<button class="mobile-case-tab ${group.status === activeTab.status ? "active" : ""}" data-mobile-case-tab="${group.status}" type="button" role="tab" aria-selected="${group.status === activeTab.status}"><span>${group.title}</span><b>${group.cases.length}</b></button>`).join("")}</div><div class="mobile-tab-list" role="tabpanel">${activeTab.cases.length ? activeTab.cases.map(caseCard).join("") : `<div class="mobile-tab-empty"><strong>Keine Fälle ${activeTab.title === "In Arbeit" ? "in Arbeit" : activeTab.title.toLowerCase()}.</strong><span>${activeTab.description}</span></div>`}</div>`;
+  document.getElementById("caseList").innerHTML = isMobileViewport() ? mobileList : (filtered.length ? filtered.map(caseCard).join("") : empty("Keine passenden Fälle"));
   const c = getCase(state.selectedCaseId); const detail = document.getElementById("caseDetail");
   if (!c) { detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return; }
   const docs = documentsFor(c.id).sort((a,b) => dateValue(b.date) - dateValue(a.date));
@@ -256,13 +253,13 @@ document.addEventListener("click", event => {
   if (event.target.id === "analyzeAll") { analyzeAllUploads(); return; }
   const resetUpload = event.target.closest("[data-reset-upload]"); if (resetUpload) { resetUploadAnalysis(resetUpload.dataset.resetUpload); return; }
   const deleteUploadButton = event.target.closest("[data-delete-upload]"); if (deleteUploadButton) { deleteUpload(deleteUploadButton.dataset.deleteUpload); return; }
-  if (event.target.closest("[data-toggle-completed]")) { completedCasesExpanded = !completedCasesExpanded; renderCases(); return; }
+  const mobileTab = event.target.closest("[data-mobile-case-tab]"); if (mobileTab) { mobileCaseTab = mobileTab.dataset.mobileCaseTab; renderCases(); return; }
   if (event.target.closest("[data-close-case-detail]")) { mobileCaseDetailOpen = false; renderCases(); return; }
   const newModal = event.target.closest("[data-open-modal]"); if (newModal) { openModal(newModal.dataset.openModal); return; }
   const documentFor = event.target.closest("[data-open-document-for]"); if (documentFor) { openModal("document", documentFor.dataset.openDocumentFor); return; }
   const note = event.target.closest("[data-add-note]"); if (note) { openModal("note", note.dataset.addNote); return; }
   const open = event.target.closest("[data-case-id]"); if (open && !event.target.closest("[data-cycle-status]")) { openCase(open.dataset.caseId); return; }
-  const cycle = event.target.closest("[data-cycle-status]"); if (cycle) { const c = getCase(cycle.dataset.cycleStatus); c.status = {open:"progress",progress:"done",done:"open"}[c.status]; c.updatedAt=new Date().toISOString(); saveState(); render(); showToast(`Status: ${statusLabel(c.status)}`); return; }
+  const cycle = event.target.closest("[data-cycle-status]"); if (cycle) { const c = getCase(cycle.dataset.cycleStatus); c.status = {open:"progress",progress:"done",done:"open"}[c.status]; c.updatedAt=new Date().toISOString(); if (isMobileViewport()) { mobileCaseTab = c.status; mobileCaseDetailOpen = false; } saveState(); render(); showToast(`Status: ${statusLabel(c.status)}`); return; }
   if (event.target.id === "closeModal" || event.target.id === "modalBackdrop") closeModal();
   if (event.target.id === "resetData") { if (confirm("Alle lokal gespeicherten Fälle und Dokumente löschen?")) { state = {...defaultState}; saveState(); render(); showToast("Lokale Daten wurden gelöscht."); } }
 });
