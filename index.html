@@ -30,22 +30,40 @@
             <div><p class="eyebrow">Übersicht</p><h1>Guten Tag.</h1><p class="subtitle">Ihre Fälle und nächsten Schritte auf einen Blick.</p></div>
             <button class="button primary" data-open-modal="case"><span>＋</span> Neuer Fall</button>
           </header>
-          <section class="quick-action-card panel" aria-label="Schnellaktion Dokumente">
-            <div><p class="eyebrow">Schnell erfassen</p><h2>Was möchten Sie ablegen?</h2><p>Dokumente bleiben auf diesem Gerät und können anschließend einem Fall zugeordnet werden.</p></div>
+          <section class="quick-action-card dashboard-hero panel" aria-label="Schnellaktion Dokumente">
+            <div class="hero-copy"><p class="eyebrow">Dokumente im Griff</p><h2>Vom Eingang zum nächsten Schritt.</h2><p>Fotografieren oder laden Sie Unterlagen hoch. Aktenpilot sortiert sie anschließend in Ihren Arbeitsfluss ein.</p></div>
             <div class="quick-action-buttons"><button class="button camera-action" data-dashboard-upload="camera" type="button"><span>⌁</span> Dokument fotografieren</button><button class="button primary upload-action" data-dashboard-upload="files" type="button"><span>＋</span> Dokument hochladen</button></div>
             <input id="cameraUpload" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" />
           </section>
-          <div class="stats-grid" id="statCards"></div>
-          <div class="dashboard-grid">
-            <section class="panel upcoming-panel">
-              <div class="panel-heading"><div><p class="eyebrow">Priorität</p><h2>Nächste Fristen</h2></div><button class="text-button nav-shortcut" data-view-target="cases">Alle Fälle →</button></div>
-              <div class="deadline-list" id="deadlineList"></div>
-            </section>
-            <section class="panel cases-panel">
-              <div class="panel-heading"><div><p class="eyebrow">Arbeitsstand</p><h2>Zuletzt bearbeitet</h2></div></div>
-              <div class="recent-cases" id="recentCases"></div>
-            </section>
-          </div>
+          <section class="dashboard-section overview-section">
+            <div class="section-heading"><div><p class="eyebrow">Überblick</p><h2>Ihr Arbeitsstand</h2></div><p>Wählen Sie eine Kennzahl, um direkt in den passenden Bereich zu wechseln.</p></div>
+            <div class="stats-grid" id="statCards"></div>
+          </section>
+          <section class="dashboard-section priorities-section">
+            <div class="section-heading"><div><p class="eyebrow">Prioritäten</p><h2>Was braucht jetzt Aufmerksamkeit?</h2></div></div>
+            <div class="priority-grid">
+              <section class="panel upcoming-panel priority-deadlines">
+                <div class="panel-heading"><div><p class="eyebrow">Fristen</p><h2>Nächste Termine</h2></div><button class="text-button nav-shortcut" data-view-target="documents">Alle Dokumente →</button></div>
+                <div class="deadline-list" id="deadlineList"></div>
+              </section>
+              <section class="panel urgent-cases-panel">
+                <div class="panel-heading"><div><p class="eyebrow">Dringende Fälle</p><h2>Jetzt bearbeiten</h2></div></div>
+                <div class="urgent-cases" id="urgentCases"></div>
+              </section>
+            </div>
+          </section>
+          <section class="dashboard-section work-section">
+            <div class="dashboard-grid">
+              <section class="panel cases-panel current-cases-panel">
+                <div class="panel-heading"><div><p class="eyebrow">Laufende Arbeit</p><h2>Aktuelle Fälle</h2></div><button class="text-button nav-shortcut" data-view-target="cases">Alle Fälle →</button></div>
+                <div class="recent-cases" id="recentCases"></div>
+              </section>
+              <section class="panel activity-panel">
+                <div class="panel-heading"><div><p class="eyebrow">Verlauf</p><h2>Letzte Aktivitäten</h2></div></div>
+                <div class="activity-list" id="activityList"></div>
+              </section>
+            </div>
+          </section>
         </section>
 
         <section class="view" id="cases-view">

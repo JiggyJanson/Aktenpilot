@@ -4,6 +4,7 @@ let state = loadState();
 let currentView = "dashboard";
 let analysisQueue = Promise.resolve();
 const queuedAnalysisIds = new Set();
+let mobileCaseDetailOpen = false;
 
 function loadState() {
   try {
@@ -22,11 +23,13 @@ function esc(value = "") { const div = document.createElement("div"); div.textCo
 function dateValue(value) { return value ? new Date(`${value}T12:00:00`) : null; }
 function formatDate(value) { if (!value) return "–"; return dateValue(value).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }); }
 function formatShortDate(value) { if (!value) return "–"; return dateValue(value).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }); }
+function formatActivityDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "Gerade eben" : date.toLocaleDateString("de-DE", { day: "2-digit", month: "short" }); }
 function formatFileSize(bytes = 0) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`; }
 function statusLabel(status) { return { open: "Offen", progress: "In Arbeit", done: "Erledigt" }[status] || "Offen"; }
 function uploadStatusLabel(status) { return { queued: "Bereit zur Analyse", waiting: "In Analyse-Warteschlange", analyzing: "Wird analysiert …", analyzed: "Analysiert", unsupported: "Nicht unterstützt", error: "Analyse fehlgeschlagen" }[status] || "Bereit zur Analyse"; }
 function priorityLabel(priority) { return { high: "Hoch", medium: "Mittel", low: "Niedrig" }[priority] || "Mittel"; }
 function getCase(id) { return state.cases.find(c => c.id === id); }
+function isMobileViewport() { return window.matchMedia("(max-width: 700px)").matches; }
 function isAutoCase(caseRecord) { return Boolean(caseRecord?.generatedByAnalysis || caseRecord?.autoKey); }
 function caseTitleHtml(caseRecord) { return `<span class="case-title-text">${esc(caseRecord.title)}</span>${isAutoCase(caseRecord) ? '<span class="auto-badge" title="Automatisch erstellt">⚡ Auto</span>' : ""}`; }
 function documentsFor(caseId) { return state.documents.filter(d => d.caseId === caseId); }
@@ -66,10 +69,19 @@ function renderDashboard() {
     const tone = deadlineTone(d.deadline);
     return `<article class="deadline-item ${tone}" data-case-id="${d.caseId || ""}"><div class="deadline-date"><strong>${date.getDate()}</strong>${date.toLocaleDateString("de-DE", { month:"short" })}</div><div class="deadline-copy"><b>${esc(d.title)}</b><span>${c ? esc(c.title) : "Nicht zugeordnet"}</span></div><span class="urgency ${tone}">${deadlineText(d.deadline)}</span></article>`;
   }).join("") : empty("Keine offenen Fristen", "Fristen aus Dokumenten erscheinen hier automatisch.");
-  const cases = [...state.cases].sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  const cases = state.cases.filter(c => c.status !== "done").sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   document.getElementById("recentCases").innerHTML = cases.length ? cases.slice(0,6).map(c => `<article class="recent-case" data-case-id="${c.id}"><div class="case-initial">${esc(c.title.charAt(0).toUpperCase())}</div><div style="min-width:0"><span class="case-name">${caseTitleHtml(c)}</span><small>${c.reference ? esc(c.reference) : c.party ? esc(c.party) : "Ohne Aktenzeichen"}</small></div><span class="status ${c.status}">${statusLabel(c.status)}</span></article>`).join("") : empty("Noch keine Fälle", "Legen Sie Ihren ersten Fall an, um zu starten.");
+  const urgentCases = state.cases.map(c => ({ caseRecord: c, deadline: documentsFor(c.id).filter(deadlineActive).map(d => d.deadline).sort()[0] })).filter(item => item.deadline && daysUntil(item.deadline) <= 7).sort((a,b) => dateValue(a.deadline) - dateValue(b.deadline));
+  document.getElementById("urgentCases").innerHTML = urgentCases.length ? urgentCases.slice(0,4).map(({ caseRecord, deadline }) => `<article class="urgent-case" data-case-id="${caseRecord.id}"><div class="urgent-indicator ${deadlineTone(deadline)}"></div><div><span class="case-name">${caseTitleHtml(caseRecord)}</span><small>${deadlineText(deadline)} · Frist ${formatDate(deadline)}</small></div><span class="arrow">→</span></article>`).join("") : empty("Alles im grünen Bereich", "Derzeit stehen keine Fristen innerhalb der nächsten sieben Tage an.");
+  const activities = [
+    ...state.documents.map(document => ({ date: document.createdAt || document.date, title: "Dokument abgelegt", detail: document.title, caseId: document.caseId, icon: "▤" })),
+    ...state.cases.map(caseRecord => ({ date: caseRecord.updatedAt || caseRecord.createdAt, title: "Fall aktualisiert", detail: caseRecord.title, caseId: caseRecord.id, icon: "◫" }))
+  ].sort((a,b) => new Date(b.date) - new Date(a.date));
+  document.getElementById("activityList").innerHTML = activities.length ? activities.slice(0,5).map(activity => `<article class="activity-item" data-case-id="${activity.caseId || ""}"><span class="activity-icon">${activity.icon}</span><div><strong>${esc(activity.title)}</strong><span>${esc(activity.detail)}</span></div><time>${formatActivityDate(activity.date)}</time></article>`).join("") : empty("Noch keine Aktivitäten", "Erfasste Dokumente und bearbeitete Fälle erscheinen hier.");
 }
 function renderCases() {
+  const casesView = document.getElementById("cases-view");
+  casesView.classList.toggle("mobile-case-detail", isMobileViewport() && mobileCaseDetailOpen);
   const query = document.getElementById("caseSearch").value.toLowerCase();
   const filtered = state.cases.filter(c => `${c.title} ${c.reference} ${c.party}`.toLowerCase().includes(query));
   if (!state.selectedCaseId && state.cases[0]) state.selectedCaseId = state.cases[0].id;
@@ -79,7 +91,7 @@ function renderCases() {
   if (!c) { detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return; }
   const docs = documentsFor(c.id).sort((a,b) => dateValue(b.date) - dateValue(a.date));
   const notes = c.notes || [];
-  detail.innerHTML = `<header class="case-detail-head"><div><h2 class="case-title">${caseTitleHtml(c)}</h2><div class="case-meta">${c.reference ? `<span class="case-reference">Aktenzeichen · ${esc(c.reference)}</span>` : ""}${c.party ? `<span class="case-party">${esc(c.party)}</span>` : `<span class="case-party">Keine Beteiligten hinterlegt</span>`}<span>Erstellt am ${formatDate(c.createdAt.slice(0,10))}</span></div>${isAutoCase(c) ? '<p class="auto-case-hint">⚡ Automatisch erstellt – Angaben bitte prüfen</p>' : ""}</div><div class="case-detail-actions"><button class="status ${c.status}" data-cycle-status="${c.id}" title="Status ändern">${statusLabel(c.status)}</button><button class="icon-button" data-add-note="${c.id}">＋ Notiz</button></div></header><div class="detail-columns"><section><h3 class="section-title">Zeitleiste <span class="optional">(${docs.length} Dokumente)</span></h3><div class="timeline">${docs.length ? docs.map(d => `<article class="timeline-item"><div class="timeline-date">${formatDate(d.date)}${d.deadline ? ` · Frist: <span class="${deadlineClass(d.deadline)}">${formatDate(d.deadline)}</span>` : ""}</div><div class="timeline-title">${esc(d.title)} <span class="optional">· ${esc(d.type)}</span></div>${d.summary ? `<div class="timeline-desc">${esc(d.summary)}</div>` : ""}</article>`).join("") : empty("Noch keine Dokumente", "Erfassen und ordnen Sie Dokumente diesem Fall zu.")}</div><div class="quick-actions"><button class="button primary" data-open-document-for="${c.id}">＋ Dokument erfassen</button></div></section><section><h3 class="section-title">Notizen</h3><div class="notes">${notes.length ? [...notes].reverse().map(n => `<article class="note"><time>${formatDate(n.date)}</time>${esc(n.text)}</article>`).join("") : empty("Keine Notizen", "Halten Sie wichtige Gedanken und nächste Schritte fest.")}</div></section></div>`;
+  detail.innerHTML = `<header class="case-detail-head"><div><button class="mobile-back" data-close-case-detail type="button">← Alle Fälle</button><h2 class="case-title">${caseTitleHtml(c)}</h2><div class="case-meta">${c.reference ? `<span class="case-reference">Aktenzeichen · ${esc(c.reference)}</span>` : ""}${c.party ? `<span class="case-party">${esc(c.party)}</span>` : `<span class="case-party">Keine Beteiligten hinterlegt</span>`}<span>Erstellt am ${formatDate(c.createdAt.slice(0,10))}</span></div>${isAutoCase(c) ? '<p class="auto-case-hint">⚡ Automatisch erstellt – Angaben bitte prüfen</p>' : ""}</div><div class="case-detail-actions"><button class="status ${c.status}" data-cycle-status="${c.id}" title="Status ändern">${statusLabel(c.status)}</button><button class="icon-button" data-add-note="${c.id}">＋ Notiz</button></div></header><div class="detail-columns"><section><h3 class="section-title">Zeitleiste <span class="optional">(${docs.length} Dokumente)</span></h3><div class="timeline">${docs.length ? docs.map(d => `<article class="timeline-item"><div class="timeline-date">${formatDate(d.date)}${d.deadline ? ` · Frist: <span class="${deadlineClass(d.deadline)}">${formatDate(d.deadline)}</span>` : ""}</div><div class="timeline-title">${esc(d.title)} <span class="optional">· ${esc(d.type)}</span></div>${d.summary ? `<div class="timeline-desc">${esc(d.summary)}</div>` : ""}</article>`).join("") : empty("Noch keine Dokumente", "Erfassen und ordnen Sie Dokumente diesem Fall zu.")}</div><div class="quick-actions"><button class="button primary" data-open-document-for="${c.id}">＋ Dokument erfassen</button></div></section><section><h3 class="section-title">Notizen</h3><div class="notes">${notes.length ? [...notes].reverse().map(n => `<article class="note"><time>${formatDate(n.date)}</time>${esc(n.text)}</article>`).join("") : empty("Keine Notizen", "Halten Sie wichtige Gedanken und nächste Schritte fest.")}</div></section></div>`;
 }
 function renderDocuments() {
   const filterSelect = document.getElementById("documentCaseFilter"); const selected = filterSelect.value;
@@ -195,16 +207,17 @@ function showToast(message) { const t = document.getElementById("toast"); t.text
 function createCase(form) { const f = new FormData(form); const now = new Date().toISOString(); const c = { id: uid(), title: f.get("title").trim(), reference: f.get("reference").trim(), party: f.get("party").trim(), status: f.get("status"), createdAt: now, updatedAt: now, notes: [] }; if (f.get("note").trim()) c.notes.push({ id:uid(), text:f.get("note").trim(), date:now.slice(0,10) }); state.cases.unshift(c); state.selectedCaseId = c.id; saveState(); closeModal(); currentView = "cases"; render(); showToast("Fall wurde angelegt."); }
 function createDocument(form) { const f = new FormData(form); const now = new Date().toISOString(); state.documents.unshift({ id:uid(), title:f.get("title").trim(), type:f.get("type"), date:f.get("date"), caseId:f.get("caseId"), deadline:f.get("deadline"), status:f.get("status"), summary:f.get("summary").trim(), createdAt:now }); const c = getCase(f.get("caseId")); if(c) c.updatedAt = now; saveState(); closeModal(); render(); showToast("Dokument wurde gespeichert."); }
 function addNote(form) { const c = getCase(form.dataset.caseId); const text = new FormData(form).get("note").trim(); if (!c || !text) return; const now = new Date().toISOString(); c.notes ||= []; c.notes.push({id:uid(), text, date:now.slice(0,10)}); c.updatedAt=now; saveState(); closeModal(); render(); showToast("Notiz wurde hinzugefügt."); }
-function openCase(id) { if (!id || !getCase(id)) return; state.selectedCaseId = id; saveState(); currentView = "cases"; render(); }
+function openCase(id) { if (!id || !getCase(id)) return; state.selectedCaseId = id; mobileCaseDetailOpen = isMobileViewport(); saveState(); currentView = "cases"; render(); }
 
 document.addEventListener("click", event => {
-  const nav = event.target.closest("[data-view]"); if (nav) { currentView = nav.dataset.view; render(); return; }
+  const nav = event.target.closest("[data-view]"); if (nav) { currentView = nav.dataset.view; if (currentView === "cases") mobileCaseDetailOpen = false; render(); return; }
   const shortcut = event.target.closest("[data-view-target]"); if (shortcut) { currentView = shortcut.dataset.viewTarget; render(); return; }
   const dashboardUpload = event.target.closest("[data-dashboard-upload]"); if (dashboardUpload) { document.getElementById(dashboardUpload.dataset.dashboardUpload === "camera" ? "cameraUpload" : "fileUpload").click(); return; }
   const analyze = event.target.closest("[data-analyze-upload]"); if (analyze) { enqueueAnalysis(analyze.dataset.analyzeUpload); return; }
   if (event.target.id === "analyzeAll") { analyzeAllUploads(); return; }
   const resetUpload = event.target.closest("[data-reset-upload]"); if (resetUpload) { resetUploadAnalysis(resetUpload.dataset.resetUpload); return; }
   const deleteUploadButton = event.target.closest("[data-delete-upload]"); if (deleteUploadButton) { deleteUpload(deleteUploadButton.dataset.deleteUpload); return; }
+  if (event.target.closest("[data-close-case-detail]")) { mobileCaseDetailOpen = false; renderCases(); return; }
   const newModal = event.target.closest("[data-open-modal]"); if (newModal) { openModal(newModal.dataset.openModal); return; }
   const documentFor = event.target.closest("[data-open-document-for]"); if (documentFor) { openModal("document", documentFor.dataset.openDocumentFor); return; }
   const note = event.target.closest("[data-add-note]"); if (note) { openModal("note", note.dataset.addNote); return; }
@@ -224,6 +237,7 @@ const uploadDropzone = document.getElementById("uploadDropzone");
 ["dragleave", "drop"].forEach(type => uploadDropzone.addEventListener(type, event => { event.preventDefault(); uploadDropzone.classList.remove("dragging"); }));
 uploadDropzone.addEventListener("drop", event => addUploads(event.dataTransfer.files));
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+window.addEventListener("resize", () => { if (!isMobileViewport()) mobileCaseDetailOpen = false; renderCases(); });
 saveState();
 closeModal();
 document.querySelector(".main-content").insertAdjacentHTML("beforeend", `<footer class="legal-notice"><strong>Hinweis:</strong> Aktenpilot ist ausschließlich eine Organisationshilfe und bietet keine Rechtsberatung. Prüfen Sie Fristen und rechtliche Schritte stets eigenständig oder mit qualifizierter Beratung.</footer>`);
