@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aktenpilot – Fälle im Blick</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#dashboard" aria-label="Aktenpilot Startseite">
+          <span class="brand-mark">A</span>
+          <span>Aktenpilot<small>Organisation für Fälle</small></span>
+        </a>
+        <nav class="main-nav" aria-label="Hauptnavigation">
+          <button class="nav-link active" data-view="dashboard"><span>▦</span> Dashboard</button>
+          <button class="nav-link" data-view="cases"><span>◫</span> Fälle</button>
+          <button class="nav-link" data-view="documents"><span>▤</span> Dokumente</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <p>Alles bleibt auf diesem Gerät gespeichert.</p>
+          <button class="text-button" id="resetData">Lokale Daten löschen</button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="view active" id="dashboard-view">
+          <header class="page-header">
+            <div><p class="eyebrow">Übersicht</p><h1>Guten Tag.</h1><p class="subtitle">Ihre Fälle und nächsten Schritte auf einen Blick.</p></div>
+            <button class="button primary" data-open-modal="case"><span>＋</span> Neuer Fall</button>
+          </header>
+          <div class="stats-grid" id="statCards"></div>
+          <div class="dashboard-grid">
+            <section class="panel upcoming-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Priorität</p><h2>Nächste Fristen</h2></div><button class="text-button nav-shortcut" data-view-target="cases">Alle Fälle →</button></div>
+              <div class="deadline-list" id="deadlineList"></div>
+            </section>
+            <section class="panel cases-panel">
+              <div class="panel-heading"><div><p class="eyebrow">Arbeitsstand</p><h2>Zuletzt bearbeitet</h2></div></div>
+              <div class="recent-cases" id="recentCases"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="cases-view">
+          <header class="page-header compact">
+            <div><p class="eyebrow">Fallverwaltung</p><h1>Fälle</h1><p class="subtitle">Wählen Sie einen Fall für Details, Dokumente und Zeitleiste.</p></div>
+            <button class="button primary" data-open-modal="case"><span>＋</span> Neuer Fall</button>
+          </header>
+          <div class="cases-layout">
+            <section class="case-list-panel panel">
+              <div class="search-row"><input id="caseSearch" type="search" placeholder="Fälle durchsuchen …" aria-label="Fälle durchsuchen" /></div>
+              <div id="caseList" class="case-list"></div>
+            </section>
+            <section class="case-detail panel" id="caseDetail"></section>
+          </div>
+        </section>
+
+        <section class="view" id="documents-view">
+          <header class="page-header compact">
+            <div><p class="eyebrow">Ablage</p><h1>Dokumente</h1><p class="subtitle">Erfassen Sie Briefe und Unterlagen und ordnen Sie sie einem Fall zu.</p></div>
+            <button class="button primary" data-open-modal="document"><span>＋</span> Neues Dokument</button>
+          </header>
+          <section class="panel documents-panel">
+            <div class="toolbar"><input id="documentSearch" type="search" placeholder="Dokumente durchsuchen …" aria-label="Dokumente durchsuchen" /><select id="documentCaseFilter" aria-label="Nach Fall filtern"></select></div>
+            <div class="document-table-wrap"><table><thead><tr><th>Dokument</th><th>Datum</th><th>Zugeordneter Fall</th><th>Frist</th><th>Status</th><th></th></tr></thead><tbody id="documentTable"></tbody></table></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button class="modal-close" id="closeModal" aria-label="Dialog schließen">×</button>
+        <div id="modalContent"></div>
+      </div>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <template id="caseFormTemplate">
+      <p class="eyebrow">Neuer Vorgang</p><h2 id="modalTitle">Fall anlegen</h2><p class="modal-intro">Ein Fall bündelt Dokumente, Fristen, Notizen und die chronologische Zeitleiste.</p>
+      <form id="caseForm" class="form-grid"><label>Fallbezeichnung<input name="title" required maxlength="120" placeholder="z. B. Mietangelegenheit Müller" /></label><label>Aktenzeichen <span class="optional">optional</span><input name="reference" maxlength="60" placeholder="Ihr Zeichen / Aktenzeichen" /></label><label>Gegenseite / Beteiligte <span class="optional">optional</span><input name="party" maxlength="120" placeholder="Name oder Organisation" /></label><label>Status<select name="status"><option value="open">Offen</option><option value="progress">In Arbeit</option><option value="done">Erledigt</option></select></label><label class="full">Erste Notiz <span class="optional">optional</span><textarea name="note" rows="3" placeholder="Worum geht es in diesem Fall?"></textarea></label><button class="button primary full" type="submit">Fall anlegen</button></form>
+    </template>
+    <template id="documentFormTemplate">
+      <p class="eyebrow">Ablage</p><h2 id="modalTitle">Dokument erfassen</h2><p class="modal-intro">In Version 1 werden Dokumentinformationen manuell erfasst. Eine automatische Erkennung kann später hier anschließen.</p>
+      <form id="documentForm" class="form-grid"><label>Bezeichnung<input name="title" required maxlength="120" placeholder="z. B. Schreiben der Versicherung" /></label><label>Dokumenttyp<select name="type"><option>Brief</option><option>E-Mail</option><option>Bescheid</option><option>Vertrag</option><option>Rechnung</option><option>Notiz</option><option>Sonstiges</option></select></label><label>Datum<input name="date" type="date" required /></label><label>Fall zuordnen<select name="caseId" id="documentCaseSelect"></select></label><label>Frist <span class="optional">optional</span><input name="deadline" type="date" /></label><label>Status<select name="status"><option value="open">Offen</option><option value="progress">In Arbeit</option><option value="done">Erledigt</option></select></label><label class="full">Zusammenfassung / nächster Schritt <span class="optional">optional</span><textarea name="summary" rows="3" placeholder="Was ist wichtig? Was sollte als Nächstes passieren?"></textarea></label><button class="button primary full" type="submit">Dokument speichern</button></form>
+    </template>
+    <template id="noteFormTemplate">
+      <p class="eyebrow">Fallnotiz</p><h2 id="modalTitle">Notiz hinzufügen</h2><form id="noteForm" class="form-grid"><label class="full">Notiz<textarea name="note" rows="6" required placeholder="Gedanken, Gespräche, nächste Schritte …"></textarea></label><button class="button primary full" type="submit">Notiz speichern</button></form>
+    </template>
+    <script src="script.js"></script>
+  </body>
+</html>
