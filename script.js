@@ -122,7 +122,12 @@ function renderCases() {
   const mobileList = `<div class="mobile-case-tabs" role="tablist" aria-label="Fallstatus">${mobileTabs.map(group => `<button class="mobile-case-tab ${group.status === activeTab.status ? "active" : ""}" data-mobile-case-tab="${group.status}" type="button" role="tab" aria-selected="${group.status === activeTab.status}"><span>${group.title}</span><b>${group.cases.length}</b></button>`).join("")}</div><div class="mobile-tab-list" role="tabpanel">${activeTab.cases.length ? activeTab.cases.map(caseCard).join("") : `<div class="mobile-tab-empty"><strong>Keine Fälle ${activeTab.title === "In Arbeit" ? "in Arbeit" : activeTab.title.toLowerCase()}.</strong><span>${activeTab.description}</span></div>`}</div>`;
   document.getElementById("caseList").innerHTML = isMobileViewport() ? mobileList : (filtered.length ? filtered.map(caseCard).join("") : empty("Keine passenden Fälle"));
   const c = getCase(state.selectedCaseId); const detail = document.getElementById("caseDetail");
-  if (!c) { detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return; }
+  if (isMobileViewport() && !mobileCaseDetailOpen) { detail.replaceChildren(); detail.hidden = true; return; }
+  detail.hidden = false;
+  if (!c) {
+    if (isMobileViewport()) { mobileCaseDetailOpen = false; casesView.classList.remove("mobile-case-detail"); detail.replaceChildren(); detail.hidden = true; return; }
+    detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return;
+  }
   const docs = documentsFor(c.id).sort((a,b) => dateValue(b.date) - dateValue(a.date));
   const notes = c.notes || [];
   const mobileSummary = caseMobileSummary(c);
