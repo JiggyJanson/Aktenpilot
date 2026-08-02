@@ -30,6 +30,11 @@
             <div><p class="eyebrow">Übersicht</p><h1>Guten Tag.</h1><p class="subtitle">Ihre Fälle und nächsten Schritte auf einen Blick.</p></div>
             <button class="button primary" data-open-modal="case"><span>＋</span> Neuer Fall</button>
           </header>
+          <section class="quick-action-card panel" aria-label="Schnellaktion Dokumente">
+            <div><p class="eyebrow">Schnell erfassen</p><h2>Was möchten Sie ablegen?</h2><p>Dokumente bleiben auf diesem Gerät und können anschließend einem Fall zugeordnet werden.</p></div>
+            <div class="quick-action-buttons"><button class="button camera-action" data-dashboard-upload="camera" type="button"><span>⌁</span> Dokument fotografieren</button><button class="button primary upload-action" data-dashboard-upload="files" type="button"><span>＋</span> Dokument hochladen</button></div>
+            <input id="cameraUpload" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" />
+          </section>
           <div class="stats-grid" id="statCards"></div>
           <div class="dashboard-grid">
             <section class="panel upcoming-panel">
@@ -62,6 +67,12 @@
             <div><p class="eyebrow">Ablage</p><h1>Dokumente</h1><p class="subtitle">Erfassen Sie Briefe und Unterlagen und ordnen Sie sie einem Fall zu.</p></div>
             <button class="button primary" data-open-modal="document"><span>＋</span> Neues Dokument</button>
           </header>
+          <section class="upload-panel panel" aria-labelledby="uploadHeading">
+            <div class="upload-heading"><div><p class="eyebrow">Version 1.5</p><h2 id="uploadHeading">Dokumente analysieren</h2><p class="subtitle">Bilder und PDFs auswählen – die Simulation erkennt Beispieldaten und ordnet sie Fällen zu.</p></div><button class="button primary" id="analyzeAll" type="button">Alle analysieren</button></div>
+            <label class="upload-dropzone" id="uploadDropzone" for="fileUpload"><span class="upload-icon">⇧</span><strong>Dateien hier ablegen oder auswählen</strong><span>PDF, JPG, PNG und WEBP · Mehrfachauswahl möglich</span><input id="fileUpload" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple /></label>
+            <div id="uploadQueue" class="upload-queue" aria-live="polite"></div>
+            <p class="upload-note"><strong>Datenschutz:</strong> Aktuell werden keine echten Dokumentinhalte ausgewertet oder hochgeladen. Die Analyse erzeugt ausschließlich lokale Beispieldaten; gespeichert werden nur Dateimetadaten und die erzeugten Ergebnisse.</p>
+          </section>
           <section class="panel documents-panel">
             <div class="toolbar"><input id="documentSearch" type="search" placeholder="Dokumente durchsuchen …" aria-label="Dokumente durchsuchen" /><select id="documentCaseFilter" aria-label="Nach Fall filtern"></select></div>
             <div class="document-table-wrap"><table><thead><tr><th>Dokument</th><th>Datum</th><th>Zugeordneter Fall</th><th>Frist</th><th>Status</th><th></th></tr></thead><tbody id="documentTable"></tbody></table></div>
