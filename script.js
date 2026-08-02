@@ -5,6 +5,7 @@ let currentView = "dashboard";
 let analysisQueue = Promise.resolve();
 const queuedAnalysisIds = new Set();
 let mobileCaseDetailOpen = false;
+let completedCasesExpanded = false;
 
 function loadState() {
   try {
@@ -39,6 +40,22 @@ function caseMobileSummary(caseRecord) {
   let priority = priorities.includes("high") ? "high" : priorities.includes("medium") ? "medium" : "low";
   if (deadline && daysUntil(deadline) < 0) priority = "high";
   return { priority, deadline, tone: deadline ? deadlineTone(deadline) : "none" };
+}
+function caseDeadlineRank(caseRecord) {
+  const deadline = documentsFor(caseRecord.id).filter(deadlineActive).map(document => document.deadline).sort()[0] || "";
+  if (!deadline) return { rank: 2, deadline: "" };
+  const days = daysUntil(deadline);
+  return { rank: days < 0 ? 0 : days <= 7 ? 1 : 2, deadline };
+}
+function sortCasesForWorklist(cases) {
+  return [...cases].sort((a, b) => {
+    const aRank = caseDeadlineRank(a); const bRank = caseDeadlineRank(b);
+    if (aRank.rank !== bRank.rank) return aRank.rank - bRank.rank;
+    if (aRank.deadline && bRank.deadline) return dateValue(aRank.deadline) - dateValue(bRank.deadline);
+    if (aRank.deadline) return -1;
+    if (bRank.deadline) return 1;
+    return new Date(b.updatedAt) - new Date(a.updatedAt);
+  });
 }
 function documentsFor(caseId) { return state.documents.filter(d => d.caseId === caseId); }
 function daysUntil(date) { return Math.ceil((dateValue(date) - new Date(new Date().toDateString())) / 86400000); }
@@ -94,7 +111,18 @@ function renderCases() {
   const filtered = state.cases.filter(c => `${c.title} ${c.reference} ${c.party}`.toLowerCase().includes(query));
   if (!state.selectedCaseId && state.cases[0]) state.selectedCaseId = state.cases[0].id;
   if (!getCase(state.selectedCaseId)) state.selectedCaseId = state.cases[0]?.id || null;
-  document.getElementById("caseList").innerHTML = filtered.length ? filtered.map(c => { const summary = caseMobileSummary(c); return `<article class="case-row ${c.id === state.selectedCaseId ? "selected" : ""}" data-case-id="${c.id}"><div class="case-row-top"><span class="case-name">${caseTitleHtml(c)}</span><span class="status ${c.status}">${statusLabel(c.status)}</span></div><small>${esc(c.reference || c.party || "Keine zusätzlichen Angaben")}</small><div class="mobile-case-meta"><span class="mobile-priority ${summary.priority}">Priorität: ${priorityLabel(summary.priority)}</span><span class="mobile-deadline ${summary.tone}">${summary.deadline ? `Frist ${formatShortDate(summary.deadline)}` : "Keine Frist"}</span><span class="mobile-reference">${esc(c.reference || "Ohne Aktenzeichen")}</span></div></article>`; }).join("") : empty("Keine passenden Fälle");
+  const caseCard = c => { const summary = caseMobileSummary(c); return `<article class="case-row ${c.id === state.selectedCaseId ? "selected" : ""}" data-case-id="${c.id}"><div class="case-row-top"><span class="case-name">${caseTitleHtml(c)}</span><span class="status ${c.status}">${statusLabel(c.status)}</span></div><small>${esc(c.reference || c.party || "Keine zusätzlichen Angaben")}</small><div class="mobile-case-meta"><span class="mobile-priority ${summary.priority}">Priorität: ${priorityLabel(summary.priority)}</span><span class="mobile-deadline ${summary.tone}">${summary.deadline ? `Frist ${formatShortDate(summary.deadline)}` : "Keine Frist"}</span><span class="mobile-reference">${esc(c.reference || "Ohne Aktenzeichen")}</span></div></article>`; };
+  const groups = [
+    { status: "progress", title: "In Arbeit", description: "Aktiv bearbeitete Fälle" },
+    { status: "open", title: "Offen", description: "Noch nicht begonnene Fälle" },
+    { status: "done", title: "Erledigt", description: "Abgeschlossene Fälle", collapsible: true }
+  ];
+  document.getElementById("caseList").innerHTML = groups.map(group => {
+    const casesInGroup = sortCasesForWorklist(filtered.filter(c => c.status === group.status));
+    const collapsed = group.collapsible && !completedCasesExpanded;
+    const heading = group.collapsible ? `<button class="case-group-toggle" data-toggle-completed type="button" aria-expanded="${!collapsed}"><span><b>${group.title}</b><small>${collapsed ? "Erledigte Fälle anzeigen" : group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span><span class="toggle-chevron">${collapsed ? "⌄" : "⌃"}</span></button>` : `<div class="case-group-heading"><span><b>${group.title}</b><small>${group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span></div>`;
+    return `<section class="case-group ${group.status} ${collapsed ? "collapsed" : ""}">${heading}<div class="case-group-content">${casesInGroup.length ? casesInGroup.map(caseCard).join("") : `<p class="case-group-empty">Keine Fälle in diesem Bereich.</p>`}</div></section>`;
+  }).join("");
   const c = getCase(state.selectedCaseId); const detail = document.getElementById("caseDetail");
   if (!c) { detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return; }
   const docs = documentsFor(c.id).sort((a,b) => dateValue(b.date) - dateValue(a.date));
@@ -227,6 +255,7 @@ document.addEventListener("click", event => {
   if (event.target.id === "analyzeAll") { analyzeAllUploads(); return; }
   const resetUpload = event.target.closest("[data-reset-upload]"); if (resetUpload) { resetUploadAnalysis(resetUpload.dataset.resetUpload); return; }
   const deleteUploadButton = event.target.closest("[data-delete-upload]"); if (deleteUploadButton) { deleteUpload(deleteUploadButton.dataset.deleteUpload); return; }
+  if (event.target.closest("[data-toggle-completed]")) { completedCasesExpanded = !completedCasesExpanded; renderCases(); return; }
   if (event.target.closest("[data-close-case-detail]")) { mobileCaseDetailOpen = false; renderCases(); return; }
   const newModal = event.target.closest("[data-open-modal]"); if (newModal) { openModal(newModal.dataset.openModal); return; }
   const documentFor = event.target.closest("[data-open-document-for]"); if (documentFor) { openModal("document", documentFor.dataset.openDocumentFor); return; }
