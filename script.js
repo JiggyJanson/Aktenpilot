@@ -111,18 +111,19 @@ function renderCases() {
   const filtered = state.cases.filter(c => `${c.title} ${c.reference} ${c.party}`.toLowerCase().includes(query));
   if (!state.selectedCaseId && state.cases[0]) state.selectedCaseId = state.cases[0].id;
   if (!getCase(state.selectedCaseId)) state.selectedCaseId = state.cases[0]?.id || null;
-  const caseCard = c => { const summary = caseMobileSummary(c); return `<article class="case-row ${c.id === state.selectedCaseId ? "selected" : ""}" data-case-id="${c.id}"><div class="case-row-top"><span class="case-name">${caseTitleHtml(c)}</span><span class="status ${c.status}">${statusLabel(c.status)}</span></div><small>${esc(c.reference || c.party || "Keine zusätzlichen Angaben")}</small><div class="mobile-case-meta"><span class="mobile-priority ${summary.priority}">Priorität: ${priorityLabel(summary.priority)}</span><span class="mobile-deadline ${summary.tone}">${summary.deadline ? `Frist ${formatShortDate(summary.deadline)}` : "Keine Frist"}</span><span class="mobile-reference">${esc(c.reference || "Ohne Aktenzeichen")}</span></div></article>`; };
+  const caseCard = c => { const summary = caseMobileSummary(c); return `<article class="case-row ${c.id === state.selectedCaseId ? "selected" : ""}" data-case-id="${c.id}"><div class="case-row-top"><span class="case-name">${caseTitleHtml(c)}</span><span class="status ${c.status}">${statusLabel(c.status)}</span></div><small>${esc(c.reference || c.party || "Keine zusätzlichen Angaben")}</small><div class="mobile-case-meta"><span class="mobile-deadline ${summary.tone}">${summary.deadline ? `Frist ${formatShortDate(summary.deadline)}` : "Keine Frist"}</span><span class="mobile-reference">${esc(c.reference || "Ohne Aktenzeichen")}</span></div></article>`; };
   const groups = [
     { status: "progress", title: "In Arbeit", description: "Aktiv bearbeitete Fälle" },
     { status: "open", title: "Offen", description: "Noch nicht begonnene Fälle" },
     { status: "done", title: "Erledigt", description: "Abgeschlossene Fälle", collapsible: true }
   ];
-  document.getElementById("caseList").innerHTML = groups.map(group => {
+  const groupedMobileCases = groups.map(group => {
     const casesInGroup = sortCasesForWorklist(filtered.filter(c => c.status === group.status));
     const collapsed = group.collapsible && !completedCasesExpanded;
     const heading = group.collapsible ? `<button class="case-group-toggle" data-toggle-completed type="button" aria-expanded="${!collapsed}"><span><b>${group.title}</b><small>${collapsed ? "Erledigte Fälle anzeigen" : group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span><span class="toggle-chevron">${collapsed ? "⌄" : "⌃"}</span></button>` : `<div class="case-group-heading"><span><b>${group.title}</b><small>${group.description}</small></span><span class="case-group-count">${casesInGroup.length}</span></div>`;
     return `<section class="case-group ${group.status} ${collapsed ? "collapsed" : ""}">${heading}<div class="case-group-content">${casesInGroup.length ? casesInGroup.map(caseCard).join("") : `<p class="case-group-empty">Keine Fälle in diesem Bereich.</p>`}</div></section>`;
   }).join("");
+  document.getElementById("caseList").innerHTML = isMobileViewport() ? groupedMobileCases : (filtered.length ? filtered.map(caseCard).join("") : empty("Keine passenden Fälle"));
   const c = getCase(state.selectedCaseId); const detail = document.getElementById("caseDetail");
   if (!c) { detail.innerHTML = empty("Noch kein Fall ausgewählt", "Legen Sie einen Fall an, um eine Zeitleiste aufzubauen."); return; }
   const docs = documentsFor(c.id).sort((a,b) => dateValue(b.date) - dateValue(a.date));
